@@ -881,7 +881,7 @@ function renderTaskList() {
 }
 
 // ── AI Generation ─────────────────────────────────────────────────────────────
-const GEMINI_KEY = "QUl6YVN5RFprZTZPUERrbW1iSHlTVkxpR0ZxaWJneWhSOEl6dDNJ";
+const GEMINI_KEY = atob("QUl6YVN5RFprZTZPUERrbW1iSHlTVkxpR0ZxaWJneWhSOEl6dDNJ");
 
 async function generateTasks() {
   if (!GEMINI_KEY) {
