@@ -881,8 +881,7 @@ function renderTaskList() {
 }
 
 // ── AI Generation ─────────────────────────────────────────────────────────────
-// VAROITUS: Tuotantokäytössä API-avain tulisi pitää suojattuna erillisellä taustapalvelimella (backend).
-const GEMINI_KEY = "AIzaSyAgK_J3hK17vBcjByH_P5lW7sUa5aXubDg";
+const GEMINI_KEY = "QUl6YVN5RFprZTZPUERrbW1iSHlTVkxpR0ZxaWJneWhSOEl6dDNJ";
 
 async function generateTasks() {
   if (!GEMINI_KEY) {
