@@ -1,0 +1,18 @@
+{
+  "name": "Seikkailugeneraattori",
+  "short_name": "Seikkailu",
+  "description": "Satunnaisten seikkailujen generaattori",
+  "start_url": "./index.html",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#0c0805",
+  "theme_color": "#0c0805",
+  "icons": [
+    {
+      "src": "icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}

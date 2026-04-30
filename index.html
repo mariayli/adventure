@@ -1,0 +1,734 @@
+<!DOCTYPE html>
+<html lang="fi">
+<head>
+  <meta charset="UTF-8">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://cdnjs.cloudflare.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; connect-src https://generativelanguage.googleapis.com https://*.tile.openstreetmap.org; img-src 'self' data: blob: https://*.tile.openstreetmap.org; frame-ancestors 'none'; base-uri 'self'; object-src 'none';">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <meta name="theme-color" content="#0c0805">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="Seikkailu">
+  <link rel="manifest" href="manifest.json">
+  <link rel="apple-touch-icon" href="icon.svg">
+  <title>Seikkailugeneraattori</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Cinzel+Decorative:wght@700&family=Cinzel:wght@400;600;700&family=EB+Garamond:ital,wght@0,400;0,500;0,600;1,400&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css" integrity="sha512-h9FcoyWjHcOcmEVkxOfTLnmZFWIH0iZhZT1H2TbOq55xssQGEJHEaIm+PgoUaZbRvQTNTluNOEfb1ZRy6D3BOw==" crossorigin="anonymous" referrerpolicy="no-referrer">
+  
+ <style>
+    :root {
+      --bg-deep:   #0c0805;
+      --bg-card:   #17100a;
+      --bg-panel:  #1e1510;
+      --border:    #4a3820;
+      --border-hi: #7a5e30;
+      --gold:      #c89a1a;
+      --amber:     #d4880a;
+      --red:       #8b1a1a;
+      --crimson:   #a82020;
+      --copper:    #b87030;
+      --sage:      #6b8c42;
+      --cream:     #e0d4b4;
+      --cream-dim: #8a7050;
+      --sepia:     #c4a050;
+
+      /* legacy names kept so task col references work */
+      --cyan:      #c07828;   /* → copper/amber  */
+      --pink:      #9b2020;   /* → deep red      */
+      --lime:      #6b8c42;   /* → sage green    */
+      --purple:    #7a4a20;   /* → worn leather  */
+      --text:      #e0d4b4;
+      --text-dim:  #8a7050;
+
+      --r:        3px;
+      --font-d:   'Cinzel Decorative', serif;
+      --font-h:   'Cinzel', serif;
+      --font-b:   'EB Garamond', serif;
+    }
+
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html { scroll-behavior: smooth; }
+
+    body {
+      background: var(--bg-deep);
+      color: var(--cream);
+      font-family: var(--font-b);
+      font-size: 16px;
+      min-height: 100vh;
+      min-height: 100dvh;
+      overflow-x: hidden;
+      position: relative;
+    }
+
+    /* Aged map grid */
+    body::before {
+      content: '';
+      position: fixed; inset: 0;
+      background-image:
+        linear-gradient(rgba(200,154,26,0.06) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(200,154,26,0.06) 1px, transparent 1px);
+      background-size: 52px 52px;
+      pointer-events: none; z-index: 0;
+    }
+
+    /* Warm ambient glows */
+    body::after {
+      content: '';
+      position: fixed; inset: 0;
+      background:
+        radial-gradient(ellipse 700px 500px at 20% 15%, rgba(200,154,26,0.07) 0%, transparent 70%),
+        radial-gradient(ellipse 500px 500px at 80% 85%, rgba(139,26,26,0.06) 0%, transparent 70%);
+      pointer-events: none; z-index: 0;
+    }
+
+    #confetti-canvas {
+      position: fixed; inset: 0;
+      pointer-events: none; z-index: 9999;
+    }
+
+    .container {
+      position: relative; z-index: 1;
+      max-width: 680px;
+      margin: 0 auto;
+      padding: 28px 16px 80px;
+      padding-bottom: calc(80px + env(safe-area-inset-bottom));
+    }
+
+    /* ── Header ─────────────────────────────────────── */
+    header {
+      text-align: center;
+      padding: 28px 0 22px;
+      position: relative;
+    }
+
+    .compass-icon {
+      width: 52px; height: 52px;
+      margin: 0 auto 16px;
+      opacity: 0.85;
+    }
+
+    .logo-badge {
+      display: inline-flex; align-items: center; gap: 9px;
+      border: 1px solid rgba(200,154,26,0.22);
+      border-radius: 2px; padding: 5px 16px;
+      margin-bottom: 16px;
+      background: rgba(200,154,26,0.04);
+    }
+
+    .pulse-dot {
+      width: 7px; height: 7px;
+      background: var(--gold);
+      border-radius: 50%;
+      box-shadow: 0 0 8px rgba(200,154,26,0.7);
+      animation: pulse-dot 3s ease-in-out infinite;
+    }
+    @keyframes pulse-dot {
+      0%,100% { opacity:1; transform:scale(1); }
+      50%      { opacity:0.35; transform:scale(0.55); }
+    }
+
+    .logo-badge {
+      cursor: pointer;
+      transition: background 0.2s, border-color 0.2s, box-shadow 0.2s;
+    }
+    .logo-badge:hover {
+      background: rgba(200,154,26,0.08);
+      border-color: rgba(200,154,26,0.4);
+    }
+    .logo-badge.log-active {
+      background: rgba(200,154,26,0.1);
+      border-color: rgba(200,154,26,0.5);
+      box-shadow: 0 0 14px rgba(200,154,26,0.12);
+    }
+
+    .logo-badge span {
+      font-family: var(--font-h);
+      font-size: 9px; font-weight: 600;
+      letter-spacing: 3.5px; text-transform: uppercase;
+      color: var(--gold);
+    }
+
+    /* ── Log mode ────────────────────────────────────── */
+    .log-empty {
+      display: none;
+      padding: 28px 18px;
+      text-align: center;
+      font-family: var(--font-b);
+      font-style: italic;
+      font-size: 14px;
+      color: var(--cream-dim);
+    }
+
+    h1 {
+      font-family: var(--font-d);
+      font-size: clamp(1.45rem, 6vw, 2.5rem);
+      line-height: 1.15;
+      background: linear-gradient(160deg, var(--cream) 0%, var(--gold) 45%, var(--amber) 100%);
+      -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+      background-clip: text;
+      filter: drop-shadow(0 2px 12px rgba(200,154,26,0.25));
+      margin-bottom: 10px;
+      letter-spacing: 0.5px;
+    }
+
+    .header-rule {
+      display: flex; align-items: center; gap: 12px;
+      margin: 0 auto 8px;
+      max-width: 320px;
+    }
+    .header-rule::before, .header-rule::after {
+      content: ''; flex: 1; height: 1px;
+      background: linear-gradient(90deg, transparent, rgba(200,154,26,0.35), transparent);
+    }
+    .header-rule-diamond {
+      width: 6px; height: 6px;
+      background: var(--gold); opacity: 0.6;
+      transform: rotate(45deg);
+    }
+
+    .tagline {
+      font-family: var(--font-h);
+      font-size: 10px; font-weight: 400;
+      letter-spacing: 3px; text-transform: uppercase;
+      color: var(--cream-dim);
+    }
+
+    /* ── Done pill ───────────────────────────────────── */
+    .done-pill {
+      display: flex; justify-content: center;
+      margin: 14px 0 14px;
+    }
+
+    .done-pill span {
+      border: 1px solid var(--border);
+      border-radius: 2px; padding: 4px 16px;
+      font-family: var(--font-h);
+      font-size: 10px; font-weight: 600;
+      letter-spacing: 2px; text-transform: uppercase;
+      color: var(--cream-dim);
+      background: rgba(200,154,26,0.03);
+      transition: color 0.3s, border-color 0.3s;
+    }
+
+    .done-pill span.has-done {
+      color: var(--gold);
+      border-color: rgba(200,154,26,0.3);
+    }
+
+    /* ── Main card ───────────────────────────────────── */
+    .main-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 4px; overflow: hidden;
+      margin-bottom: 14px; position: relative;
+      box-shadow:
+        inset 0 1px 0 rgba(200,154,26,0.08),
+        0 4px 24px rgba(0,0,0,0.5),
+        0 1px 0 rgba(200,154,26,0.06);
+    }
+
+    /* Double-border inner line */
+    .main-card::before {
+      content: '';
+      position: absolute; inset: 4px;
+      border: 1px solid rgba(200,154,26,0.08);
+      border-radius: 2px;
+      pointer-events: none; z-index: 0;
+    }
+
+    .card-glow {
+      position: absolute; inset: 0;
+      pointer-events: none; opacity: 0; transition: opacity 0.5s;
+    }
+    .main-card.rolling .card-glow {
+      opacity: 1;
+      background: radial-gradient(ellipse at center, rgba(200,154,26,0.05) 0%, transparent 70%);
+    }
+
+    /* Film grain flicker during roll */
+    .film-grain {
+      position: absolute; inset: 0; pointer-events: none; z-index: 2;
+      opacity: 0; transition: opacity 0.2s;
+    }
+    .main-card.rolling .film-grain { opacity: 1; animation: film-flicker 0.08s steps(1) infinite; }
+    @keyframes film-flicker {
+      0%   { background: rgba(200,154,26,0.025); }
+      33%  { background: rgba(0,0,0,0.04); }
+      66%  { background: rgba(200,154,26,0.015); }
+      100% { background: transparent; }
+    }
+
+    /* ── Slot window ─────────────────────────────────── */
+    .slot-window {
+      padding: 32px 28px 28px;
+      min-height: 200px;
+      display: flex; flex-direction: column;
+      align-items: center; justify-content: center;
+      text-align: center; position: relative;
+      border-bottom: 1px solid var(--border);
+    }
+
+    /* Aged top-light */
+    .slot-window::before {
+      content: '';
+      position: absolute; top: 0; left: 0; right: 0; height: 1px;
+      background: linear-gradient(90deg, transparent, rgba(200,154,26,0.2), transparent);
+    }
+
+    .spin-icon {
+      font-size: 2.8rem; margin-bottom: 14px;
+      display: block; position: relative; z-index: 1;
+    }
+    .main-card.rolling .spin-icon { animation: tumble 0.16s linear infinite; }
+    @keyframes tumble {
+      from { transform: rotate(0deg) scale(1); }
+      50%  { transform: rotate(180deg) scale(0.85); }
+      to   { transform: rotate(360deg) scale(1); }
+    }
+
+    .task-category {
+      display: inline-block;
+      font-family: var(--font-h);
+      font-size: 9px; font-weight: 600;
+      letter-spacing: 3.5px; text-transform: uppercase;
+      margin-bottom: 12px; position: relative; z-index: 1;
+      padding: 3px 10px;
+      border: 1px solid currentColor;
+      opacity: 0.85;
+    }
+
+    .task-title {
+      font-family: var(--font-h);
+      font-size: clamp(1.35rem, 5vw, 1.75rem);
+      font-weight: 700;
+      line-height: 1.25; color: var(--cream);
+      margin-bottom: 12px; position: relative; z-index: 1;
+      letter-spacing: 0.3px;
+    }
+    .main-card.rolling .task-title { animation: telegraph 0.12s steps(2) infinite; }
+    @keyframes telegraph {
+      0%   { opacity: 1; }
+      50%  { opacity: 0.15; }
+      100% { opacity: 1; }
+    }
+
+    .task-desc {
+      font-size: 15px; color: var(--cream-dim);
+      line-height: 1.7; max-width: 460px;
+      position: relative; z-index: 1;
+      font-style: italic;
+    }
+
+    .task-meta {
+      display: flex; gap: 8px;
+      justify-content: center; flex-wrap: wrap;
+      margin-top: 15px; position: relative; z-index: 1;
+    }
+
+    .meta-pill {
+      display: flex; align-items: center; gap: 6px;
+      border: 1px solid var(--border);
+      padding: 4px 11px;
+      font-family: var(--font-h); font-size: 9px; font-weight: 600;
+      letter-spacing: 1.5px; text-transform: uppercase;
+      color: var(--cream-dim);
+    }
+    .meta-pill .dot { width: 5px; height: 5px; transform: rotate(45deg); }
+
+    .idle-prompt {
+      font-size: 15px; color: var(--cream-dim);
+      font-style: italic;
+      font-family: var(--font-b);
+    }
+
+    /* ── Map section ─────────────────────────────────── */
+    .map-section {
+      display: none;
+      padding: 16px 20px 14px;
+      border-bottom: 1px solid var(--border);
+    }
+    .map-section.visible { display: block; }
+
+    .map-label {
+      font-family: var(--font-h);
+      font-size: 9px; font-weight: 600;
+      letter-spacing: 3px; text-transform: uppercase;
+      color: var(--gold); margin-bottom: 10px;
+      display: flex; align-items: center; gap: 10px;
+      opacity: 0.8;
+    }
+    .map-label::after {
+      content: ''; flex: 1; height: 1px;
+      background: linear-gradient(90deg, rgba(200,154,26,0.3), transparent);
+    }
+
+    .map-container {
+      background: rgba(0,0,0,0.4);
+      border: 1px solid rgba(200,154,26,0.2);
+      border-radius: 2px; overflow: hidden;
+      height: 200px; position: relative;
+    }
+
+    #leaflet-map { width: 100%; height: 100%; }
+
+    .map-denied {
+      display: none;
+      position: absolute; inset: 0;
+      align-items: center; justify-content: center;
+      font-family: var(--font-b); font-size: 14px; font-style: italic;
+      color: var(--cream-dim); text-align: center; padding: 20px;
+    }
+
+    .map-open-btn {
+      display: inline-flex; align-items: center; gap: 6px;
+      margin-top: 10px;
+      background: transparent;
+      border: 1px solid rgba(200,154,26,0.25);
+      padding: 6px 14px;
+      color: var(--gold);
+      font-family: var(--font-h); font-size: 9px; font-weight: 600;
+      letter-spacing: 1.5px; text-transform: uppercase;
+      cursor: pointer; text-decoration: none;
+      transition: background 0.18s, border-color 0.18s;
+    }
+    .map-open-btn:hover {
+      background: rgba(200,154,26,0.07);
+      border-color: rgba(200,154,26,0.5);
+    }
+
+    /* ── Action area ─────────────────────────────────── */
+    .action-area {
+      padding: 22px 24px;
+      display: flex; flex-direction: column;
+      align-items: center; gap: 10px;
+    }
+
+    .roll-btn {
+      width: 100%; max-width: 340px; height: 58px;
+      background: linear-gradient(160deg, #7a1515 0%, #a82020 40%, #8b1a1a 100%);
+      border: 1px solid rgba(200,154,26,0.35);
+      border-radius: 2px;
+      font-family: var(--font-h); font-size: 0.95rem;
+      letter-spacing: 3px; text-transform: uppercase;
+      color: var(--cream);
+      cursor: pointer; position: relative; overflow: hidden;
+      transition: transform 0.15s, box-shadow 0.15s, border-color 0.15s;
+      box-shadow:
+        0 0 20px rgba(139,26,26,0.4),
+        0 4px 16px rgba(0,0,0,0.5),
+        inset 0 1px 0 rgba(200,154,26,0.2),
+        inset 0 -1px 0 rgba(0,0,0,0.3);
+    }
+    .roll-btn::before {
+      content: '';
+      position: absolute; inset: 0;
+      background: linear-gradient(160deg, rgba(200,154,26,0.15), transparent 50%);
+      opacity: 0; transition: opacity 0.3s;
+    }
+    .roll-btn:hover::before  { opacity: 1; }
+    .roll-btn:hover  {
+      transform: translateY(-2px);
+      box-shadow: 0 0 32px rgba(168,32,32,0.5), 0 8px 24px rgba(0,0,0,0.5), inset 0 1px 0 rgba(200,154,26,0.3);
+      border-color: rgba(200,154,26,0.55);
+    }
+    .roll-btn:active { transform: scale(0.98); }
+    .roll-btn:disabled { opacity: 0.45; cursor: not-allowed; transform: none; box-shadow: none; }
+    .roll-btn span { position: relative; z-index: 1; }
+
+    .secondary-actions {
+      display: none;
+      gap: 8px;
+      width: 100%; max-width: 340px;
+    }
+    .secondary-actions.visible { display: flex; }
+
+    .reroll-btn, .done-btn {
+      flex: 1;
+      background: transparent;
+      border-radius: 2px;
+      padding: 8px 14px;
+      font-family: var(--font-h); font-size: 9px; font-weight: 600;
+      letter-spacing: 2px; text-transform: uppercase;
+      cursor: pointer;
+      transition: background 0.18s, border-color 0.18s, color 0.18s;
+      text-align: center;
+    }
+
+    .reroll-btn {
+      border: 1px solid var(--border);
+      color: var(--cream-dim);
+    }
+    .reroll-btn:hover { border-color: var(--border-hi); color: var(--cream); }
+
+    .done-btn {
+      border: 1px solid rgba(107,140,66,0.35);
+      color: var(--sage);
+    }
+    .done-btn:hover { background: rgba(107,140,66,0.08); border-color: rgba(107,140,66,0.6); }
+
+    /* ── Generate section ───────────────────────────── */
+    .generate-section {
+      margin-bottom: 14px;
+      display: flex; flex-direction: column; align-items: center; gap: 10px;
+    }
+
+    .gen-btn {
+      width: 100%; max-width: 340px; height: 44px;
+      background: transparent;
+      border: 1px solid rgba(200,154,26,0.22);
+      border-radius: 2px;
+      font-family: var(--font-h); font-size: 9px; font-weight: 600;
+      letter-spacing: 2.5px; text-transform: uppercase;
+      color: var(--gold); cursor: pointer;
+      transition: background 0.18s, border-color 0.18s, box-shadow 0.18s;
+      position: relative; overflow: hidden;
+      opacity: 0.75;
+    }
+    .gen-btn:hover:not(:disabled) {
+      background: rgba(200,154,26,0.06);
+      border-color: rgba(200,154,26,0.45);
+      box-shadow: 0 0 16px rgba(200,154,26,0.1);
+      opacity: 1;
+    }
+    .gen-btn:disabled { opacity: 0.35; cursor: not-allowed; }
+    .gen-btn.loading { color: transparent; }
+    .gen-btn.loading::after {
+      content: '';
+      position: absolute; top: 50%; left: 50%;
+      width: 16px; height: 16px;
+      margin: -8px 0 0 -8px;
+      border: 2px solid rgba(200,154,26,0.2);
+      border-top-color: var(--gold);
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* ── Task list ───────────────────────────────────── */
+    .tasks-section {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 4px; overflow: hidden;
+      box-shadow: inset 0 1px 0 rgba(200,154,26,0.06);
+    }
+
+    .tasks-header {
+      padding: 13px 18px;
+      border-bottom: 1px solid var(--border);
+      display: flex; align-items: center; gap: 10px;
+      background: rgba(200,154,26,0.03);
+    }
+    .tasks-header h2 {
+      font-family: var(--font-h);
+      font-size: 0.85rem; font-weight: 600;
+      letter-spacing: 2.5px; text-transform: uppercase;
+      color: var(--cream); flex: 1;
+    }
+    .tasks-count {
+      font-family: var(--font-h);
+      font-size: 9px; font-weight: 600;
+      letter-spacing: 1.5px; text-transform: uppercase;
+      color: var(--cream-dim);
+    }
+
+    .task-item {
+      display: flex; align-items: center; gap: 12px;
+      padding: 12px 18px;
+      border-bottom: 1px solid rgba(200,154,26,0.06);
+      transition: background 0.2s; cursor: pointer;
+    }
+    .task-item:last-child { border-bottom: none; }
+    .task-item:hover { background: rgba(200,154,26,0.03); }
+    .task-item.completed { opacity: 0.3; pointer-events: none; }
+    .task-item.active {
+      background: rgba(139,26,26,0.08);
+      border-left: 2px solid var(--crimson);
+      padding-left: 16px;
+    }
+
+    .task-icon {
+      font-size: 1.2rem; width: 36px; height: 36px;
+      display: flex; align-items: center; justify-content: center;
+      background: rgba(200,154,26,0.05);
+      border: 1px solid var(--border);
+      border-radius: 2px; flex-shrink: 0;
+    }
+
+    .task-info { flex: 1; min-width: 0; }
+    .task-name {
+      font-family: var(--font-h);
+      font-weight: 600; font-size: 12px;
+      letter-spacing: 0.5px;
+      white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+      color: var(--cream);
+    }
+    .task-cat {
+      font-family: var(--font-h);
+      font-size: 8.5px; font-weight: 600;
+      letter-spacing: 2px; text-transform: uppercase;
+      margin-top: 3px; opacity: 0.75;
+    }
+
+    .task-check {
+      width: 22px; height: 22px;
+      border: 1px solid var(--border);
+      display: flex; align-items: center; justify-content: center;
+      flex-shrink: 0; font-size: 11px; transition: all 0.3s;
+      color: var(--cream-dim);
+    }
+
+    .dismiss-btn {
+      width: 26px; height: 26px; flex-shrink: 0;
+      background: transparent; border: none; padding: 0;
+      color: var(--cream-dim); font-size: 16px; line-height: 1;
+      cursor: pointer; border-radius: 2px;
+      display: flex; align-items: center; justify-content: center;
+      opacity: 0.18;
+      transition: opacity 0.2s, color 0.2s, background 0.2s;
+    }
+    .task-item:hover .dismiss-btn { opacity: 0.45; }
+    .dismiss-btn:hover  { opacity: 1 !important; color: var(--red); background: rgba(139,26,26,0.12); }
+    .dismiss-btn:active { opacity: 1 !important; background: rgba(139,26,26,0.22); }
+    .task-item.active .dismiss-btn,
+    .task-item.completed .dismiss-btn { display: none; }
+
+    @keyframes dismiss-out {
+      0%   { opacity: 1; max-height: 60px; padding-top: 12px; padding-bottom: 12px; }
+      40%  { opacity: 0; }
+      100% { opacity: 0; max-height: 0;    padding-top: 0;     padding-bottom: 0; border-width: 0; }
+    }
+    .task-item.dismissing {
+      overflow: hidden;
+      animation: dismiss-out 0.32s ease forwards;
+    }
+
+    /* ── Toast ───────────────────────────────────────── */
+    .toast {
+      position: fixed; bottom: 28px; left: 50%;
+      transform: translateX(-50%) translateY(90px);
+      background: var(--bg-panel); border: 1px solid var(--border);
+      padding: 10px 22px;
+      font-family: var(--font-h);
+      font-size: 10px; font-weight: 600;
+      letter-spacing: 2px; text-transform: uppercase;
+      white-space: nowrap;
+      z-index: 10000;
+      transition: transform 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+      box-shadow: 0 8px 32px rgba(0,0,0,0.6), inset 0 1px 0 rgba(200,154,26,0.08);
+      bottom: calc(28px + env(safe-area-inset-bottom));
+    }
+    .toast.show { transform: translateX(-50%) translateY(0); }
+
+    footer {
+      text-align: center; padding-top: 28px;
+      font-family: var(--font-h);
+      font-size: 9px; font-weight: 600;
+      letter-spacing: 3px; text-transform: uppercase;
+      color: rgba(200,154,26,0.15);
+    }
+
+    @media (max-width: 430px) {
+      .container { padding: 18px 12px 72px; }
+      h1 { font-size: 1.4rem; }
+      .slot-window { padding: 24px 16px 22px; min-height: 180px; }
+      .action-area { padding: 18px 16px; }
+    }
+
+    /* ── Leaflet vintage skin ─────────────────────────── */
+    .leaflet-container { background: #150f08 !important; }
+    .leaflet-tile { filter: brightness(0.55) saturate(0.4) sepia(0.3) !important; }
+    .leaflet-control-attribution {
+      background: rgba(0,0,0,0.6) !important;
+      color: rgba(200,154,26,0.25) !important; font-size: 9px !important;
+    }
+    .leaflet-control-attribution a { color: rgba(200,154,26,0.35) !important; }
+    .leaflet-control-zoom a {
+      background: #1c1409 !important; border-color: #4a3820 !important;
+      color: var(--gold) !important; font-family: var(--font-h) !important;
+    }
+    .leaflet-control-zoom a:hover { background: #2a1e0c !important; }
+  </style>
+</head>
+<body>
+
+<canvas id="confetti-canvas"></canvas>
+
+<div class="container">
+
+  <header>
+    <svg class="compass-icon" viewBox="0 0 52 52" fill="none" xmlns="http://www.w3.org/2000/svg">
+      </svg>
+
+    <div class="logo-badge" id="log-badge" title="Näytä tehdyt seikkailut">
+      <div class="pulse-dot"></div>
+      <span>Expedition Log</span>
+    </div>
+    <h1>Seikkailugeneraattori</h1>
+    <div class="header-rule"><div class="header-rule-diamond"></div></div>
+    <p class="tagline">Nosta ankkuri  ·  aloita seikkailu</p>
+  </header>
+
+  <div class="done-pill">
+    <span id="done-badge">0 seikkailua tehty</span>
+  </div>
+
+  <div class="main-card" id="main-card">
+    <div class="card-glow"></div>
+    <div class="film-grain"></div>
+
+    <div class="slot-window">
+      <span class="spin-icon" id="spin-icon">🧭</span>
+      <div class="task-category" id="task-category" style="color:var(--gold)">Odottaa komentoa</div>
+      <div class="task-title" id="task-title"><span class="idle-prompt">Paina nappia ja aloita seikkailu</span></div>
+      <div class="task-desc" id="task-desc"></div>
+      <div class="task-meta" id="task-meta"></div>
+    </div>
+
+    <div class="map-section" id="map-section">
+      <div class="map-label">⊕ Sijaintisi</div>
+      <div class="map-container">
+        <div id="leaflet-map"></div>
+        <div class="map-denied" id="map-denied">Salli sijaintisi käyttö nähdäksesi kartan</div>
+      </div>
+      <a class="map-open-btn" id="map-open-btn" href="#" target="_blank" rel="noopener noreferrer">
+        <svg width="10" height="10" viewBox="0 0 10 10" fill="none">
+          <path d="M5 1L9 5L5 9M1 5h8" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+        Avaa Google Maps
+      </a>
+    </div>
+
+    <div class="action-area">
+      <button class="roll-btn" id="roll-btn">
+        <span>Arvo seikkailu</span>
+      </button>
+      <div class="secondary-actions" id="secondary-actions">
+        <button class="reroll-btn" id="reroll-btn">Ei sovi — arvo uusi</button>
+        <button class="done-btn" id="done-btn">✦ Tehty</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="generate-section" id="generate-section">
+    <button class="gen-btn" id="gen-btn">✦ Generoi uusia seikkailuja</button>
+  </div>
+
+  <div class="tasks-section">
+    <div class="tasks-header">
+      <h2>Kaikki seikkailut</h2>
+      <span class="tasks-count" id="tasks-count">0 / 36</span>
+    </div>
+    <div id="tasks-list"></div>
+    <div class="log-empty" id="log-empty">Ei vielä tehtyjä seikkailuja — heitä noppa!</div>
+  </div>
+
+  <footer>Seikkailugeneraattori  ·  2026</footer>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js" integrity="sha512-puJW3E/qXDqYp9IfhAI54BJEaWIfloJ7JWs7OeD5i6ruC9JZL1gERT1wjtwXFlh7CjE7ZJ+/vcRZRkIYIb6p4g==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+<script src="app.js"></script>
+</body>
+</html>
